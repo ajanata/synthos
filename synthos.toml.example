@@ -1,0 +1,10 @@
+# Settings that apply to the Controller bot instance
+[SynthOS]
+AdminID = "discord-user-id-number"
+LogLevel = "trace"
+
+[SynthOS.Controller]
+Token = "discord-app-token"
+
+[Postgres]
+DSN = "host=127.0.0.1 port=5432 user=synthos password=hunter2 dbname=synthos sslmode=disable TimeZone=UTC"
