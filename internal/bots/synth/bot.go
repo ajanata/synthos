@@ -20,6 +20,9 @@ type Bot struct {
 	token  string
 
 	d *discordgo.Session
+
+	commands        []command
+	commandHandlers map[string]cmdHandlerFunc
 }
 
 func New(synth *database.Synth) *Bot {
@@ -42,7 +45,6 @@ func (b *Bot) Start() error {
 	b.d.AddHandler(b.messageCreate)
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
-	b.d.AddHandler(b.presencesReplace)
 
 	// TODO intents
 	b.d.Identify.Intents = discordgo.IntentsGuildMessages |
@@ -60,12 +62,21 @@ func (b *Bot) Start() error {
 		return fmt.Errorf("opening Discord session: %w", err)
 	}
 
-	// err = b.registerCommands()
-	// if err != nil {
-	// 	return fmt.Errorf("registering commands: %w", err)
-	// }
+	ctx = b.loggerCtx(ctx)
+	err = b.registerCommands(ctx)
+	if err != nil {
+		return fmt.Errorf("registering commands: %w", err)
+	}
 
 	return nil
+}
+
+// loggerCtx attaches information about this Synth to a logger in the context.Context.
+func (b *Bot) loggerCtx(ctx context.Context) context.Context {
+	return log.Ctx(ctx).With().
+		Str("user_id", b.userID).
+		Str("bot_username", b.d.State.User.Username).
+		Logger().WithContext(ctx)
 }
 
 // setup configures the bare essentials for the Discord client, but does not connect it.
@@ -98,18 +109,6 @@ func (b *Bot) Close() error {
 
 func (b *Bot) userChanged(s *discordgo.Session, u *discordgo.UserUpdate) {
 	fmt.Printf("%+v\n", *u)
-}
-
-func (b *Bot) presencesReplace(s *discordgo.Session, pp *discordgo.PresencesReplace) {
-	// pp[0].
-	// for i := 0; i < len(pp); i++ {
-	//
-	// }
-	// // we only care about our synth user
-	// if p.User.ID != c.Synth.UserID {
-	// 	return
-	// }
-	fmt.Printf("replace %+v\n", *pp)
 }
 
 func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate) {

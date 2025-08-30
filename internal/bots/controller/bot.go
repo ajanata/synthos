@@ -8,6 +8,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 
+	"github.com/ajanata/synthos/internal/command"
 	"github.com/ajanata/synthos/internal/config"
 	"github.com/ajanata/synthos/internal/database"
 )
@@ -19,8 +20,7 @@ type Bot struct {
 
 	d *discordgo.Session
 
-	commands        []command
-	commandHandlers map[string]cmdHandlerFunc
+	cmdGroup *command.Group
 }
 
 type SynthCRUD interface {
@@ -37,25 +37,29 @@ func New(c config.ControllerBot, synther SynthCRUD) *Bot {
 }
 
 func (b *Bot) Start() error {
-	log.Info().Msg("Starting controller")
+	ctx := log.With().Str("bot_type", "controller").Logger().WithContext(context.Background())
+	log.Ctx(ctx).Info().Msg("Starting controller")
+
 	err := b.setup()
 	if err != nil {
 		return err
 	}
 
+	b.buildCommands(ctx)
+
 	// TODO more handlers
 	// TODO intents
 
-	log.Trace().Msg("Adding handlers")
-	b.d.AddHandler(b.commandHandler)
+	log.Ctx(ctx).Trace().Msg("Adding handlers")
+	b.d.AddHandler(b.cmdGroup.Handler)
 
-	log.Trace().Msg("Connecting controller")
+	log.Ctx(ctx).Trace().Msg("Connecting controller")
 	err = b.d.Open()
 	if err != nil {
 		return fmt.Errorf("opening Discord session: %w", err)
 	}
 
-	err = b.registerCommands()
+	err = b.cmdGroup.Register(ctx, b.d)
 	if err != nil {
 		return fmt.Errorf("registering commands: %w", err)
 	}
@@ -132,10 +136,17 @@ func (b *Bot) DeleteAllCommands() error {
 }
 
 func (b *Bot) interactionSimpleTextResponse(s *discordgo.Session, i *discordgo.Interaction, msg string) error {
+	// was a channel interaction
+	var flags discordgo.MessageFlags
+	if i.Member != nil {
+		// so we want to only show it to the user that sent the command
+		flags = discordgo.MessageFlagsEphemeral
+	}
 	return s.InteractionRespond(i, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content: msg,
+			Flags:   flags,
 		},
 	})
 }
