@@ -18,8 +18,8 @@ func NewGroup() *Group {
 	return &Group{}
 }
 
-func (g *Group) NewCommand() *Builder {
-	return newBuilder(g)
+func (g *Group) Command(name string) *Builder {
+	return newBuilder(g, name)
 }
 
 func (g *Group) Register(ctx context.Context, s *discordgo.Session) error {
@@ -28,6 +28,7 @@ func (g *Group) Register(ctx context.Context, s *discordgo.Session) error {
 
 	var appCmds []*discordgo.ApplicationCommand
 	for _, c := range g.commands {
+		c.registerSubcommands()
 		appCmds = append(appCmds, c.cmd)
 		g.handlers[c.cmd.Name] = c.cmdHandler
 	}
@@ -75,7 +76,10 @@ func (g *Group) Handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		}
 
 		ctx := logger.WithContext(context.Background())
-		h(ctx, s, u, i)
+		err := h(ctx, s, u, i)
+		if err != nil {
+			log.Ctx(ctx).Err(err).Msg("Error in handler")
+		}
 	} else {
 		log.Warn().
 			Str("name", name).

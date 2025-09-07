@@ -11,14 +11,16 @@ type Builder struct {
 	grp     *Group
 }
 
-func newBuilder(grp *Group) *Builder {
+func newBuilder(grp *Group, name string) *Builder {
 	return &Builder{
-		cmd: &discordgo.ApplicationCommand{},
+		cmd: &discordgo.ApplicationCommand{
+			Name: name,
+		},
 		grp: grp,
 	}
 }
 
-func (b *Builder) Build() {
+func (b *Builder) Build() *Command {
 	if b.cmd.Name == "" {
 		log.Panic().Msg("Command name is required")
 	}
@@ -34,11 +36,7 @@ func (b *Builder) Build() {
 		handler: b.handler,
 	}
 	b.grp.commands = append(b.grp.commands, c)
-}
-
-func (b *Builder) Name(n string) *Builder {
-	b.cmd.Name = n
-	return b
+	return c
 }
 
 func (b *Builder) Description(d string) *Builder {
@@ -48,11 +46,5 @@ func (b *Builder) Description(d string) *Builder {
 
 func (b *Builder) Handler(h Handler) *Builder {
 	b.handler = h
-	return b
-}
-
-// TODO proper subcommands and options
-func (b *Builder) Options(opts []*discordgo.ApplicationCommandOption) *Builder {
-	b.cmd.Options = opts
 	return b
 }

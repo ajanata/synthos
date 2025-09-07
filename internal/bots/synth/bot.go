@@ -129,6 +129,7 @@ func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate)
 		AFK:        false,
 		Status:     st,
 	})
+	// FIXME this shouldn't be here lol
 	if err != nil {
 		panic(err)
 	}

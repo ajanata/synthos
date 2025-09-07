@@ -16,37 +16,27 @@ func (b *Bot) buildCommands(ctx context.Context) {
 	log.Ctx(ctx).Trace().Msg("Building commands")
 
 	b.cmdGroup = command.NewGroup()
-	b.cmdGroup.NewCommand().
-		Name("setup").
+	setup := b.cmdGroup.Command("setup").
 		Description("Set up a new Synth for your account").
-		Options([]*discordgo.ApplicationCommandOption{
-			{
-				Type: discordgo.ApplicationCommandOptionSubCommand,
-				// ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeDM},
-				Name:        "start",
-				Description: "Start creating a Synth instance",
-			},
-			{
-				Type: discordgo.ApplicationCommandOptionSubCommand,
-				// ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeDM},
-				Name:        "token",
-				Description: "Set token for new Synth instance",
-				Options: []*discordgo.ApplicationCommandOption{
-					{
-						Type:        discordgo.ApplicationCommandOptionString,
-						Name:        "token",
-						Description: "Discord App token",
-						Required:    true,
-					},
-				},
-			},
-			{
-				Type: discordgo.ApplicationCommandOptionSubCommand,
-				// ChannelTypes: []discordgo.ChannelType{discordgo.ChannelTypeDM},
-				Name:        "server-link",
-				Description: "Get link for server admins to add Synth to a server",
-			},
-		}).Handler(b.setupHandler).Build()
+		Handler(b.setupHandler).
+		Build()
+	setup.Subcommand("start").
+		Description("Start creating a Synth instance").
+		Handler(b.setupStartHandler).
+		Build()
+	token := setup.Subcommand("token").
+		Description("Set token for new Synth instance").
+		Handler(b.setupTokenHandler).
+		Build()
+	token.Option("token").
+		Description("Discord App Token").
+		Type(discordgo.ApplicationCommandOptionString).
+		Required().
+		Build()
+	setup.Subcommand("link").
+		Description("Get link for server admins to add Synth to a server, and you to add to your account").
+		Handler(b.setupLinkHandler).
+		Build()
 }
 
 const setupStartMessage = `Hi! This will be formatted better later. For now, deal with it. :sunglasses:
@@ -72,77 +62,72 @@ const setupStartMessage = `Hi! This will be formatted better later. For now, dea
 9. Run the ` + "`/setup token <token>` command, where `<token>`" + ` is the value you just copied.
 `
 
-func (b *Bot) setupHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) {
-	log.Ctx(ctx).Info().Msg("setup handler")
+func (b *Bot) setupStartHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
+	log.Ctx(ctx).Info().Msg("setup start handler")
+
+	return b.interactionSimpleTextResponse(s, i.Interaction, setupStartMessage)
+}
+
+func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
+	log.Ctx(ctx).Info().Msg("setup token handler")
 
 	options := i.ApplicationCommandData().Options
+	var content string
 
-	if len(options) == 0 {
-		log.Ctx(ctx).Error().Msg("No options provided")
-		_ = b.interactionSimpleTextResponse(s, i.Interaction, "An internal error occurred.")
-		return
+	// TODO make this better
+	err := b.synther.CreateSynth(ctx, u, options[0].Options[0].StringValue())
+	if errors.Is(err, database.ErrAlreadyExists) {
+		content = "You already have a Synth instance. You must delete it (TODO) before you can make a new one. If you changed the token, TODO (but for now, delete it (TODO) and make a new one)."
+		goto out
+	} else if errors.Is(err, ErrInvalidToken) {
+		content = "The Discord token is invalid."
+		goto out
+	} else if errors.Is(err, ErrUnableToStartSynth) {
+		content = "Your Synth was created, but was unable to be started."
+		goto out
+	} else if err != nil {
+		log.Ctx(ctx).Error().Err(err).Msg("error creating synth")
+		content = "Unknown error when trying to create Synth instance."
+		goto out
 	}
 
-	if u == nil {
-		log.Ctx(ctx).Error().Interface("interaction", i).Msg("Interaction has neither user nor member")
-		_ = b.interactionSimpleTextResponse(s, i.Interaction, "Unable to process command, contact developer")
-		return
+	err = b.interactionSimpleTextResponse(s, i.Interaction, "Your Synth has been created, it is now booting! TODO follow up message, but for now, Run `/setup server-link` next.")
+	if err != nil {
+		log.Ctx(ctx).Err(err).Msg("error sending response")
 	}
+
+	err = b.synther.StartSynth(ctx, u)
+	if err != nil {
+		log.Ctx(ctx).Err(err).Msg("error starting synth")
+		content = "An internal error occurred while booting your Synth."
+	} else {
+		content = "Your Synth has been created! Run `/setup server-link` next."
+	}
+
+out:
+	return b.interactionSimpleTextResponse(s, i.Interaction, content)
+}
+
+func (b *Bot) setupLinkHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
+	log.Ctx(ctx).Info().Msg("setup link handler")
 
 	var content string
-	switch options[0].Name {
-	case "start":
-		content = setupStartMessage
-	case "token":
-		// TODO make this better
-		err := b.synther.CreateSynth(ctx, u, options[0].Options[0].StringValue())
-		if errors.Is(err, database.ErrAlreadyExists) {
-			content = "You already have a Synth instance. You must delete it (TODO) before you can make a new one. If you changed the token, TODO (but for now, delete it (TODO) and make a new one)."
-			break
-		} else if errors.Is(err, ErrInvalidToken) {
-			content = "The Discord token is invalid."
-			break
-		} else if errors.Is(err, ErrUnableToStartSynth) {
-			content = "Your Synth was created, but was unable to be started."
-			break
-		} else if err != nil {
-			log.Ctx(ctx).Error().Err(err).Msg("error creating synth")
-			content = "Unknown error when trying to create Synth instance."
-			break
-		}
-
-		err = b.interactionSimpleTextResponse(s, i.Interaction, "Your Synth has been created, it is now booting! TODO follow up message, but for now, Run `/setup server-link` next.")
-		if err != nil {
-			log.Ctx(ctx).Err(err).Msg("error sending response")
-		}
-
-		err = b.synther.StartSynth(ctx, u)
-		if err != nil {
-			log.Ctx(ctx).Err(err).Msg("error starting synth")
-			content = "An internal error occurred while booting your Synth."
-		} else {
-			content = "Your Synth has been created! Run `/setup server-link` next."
-		}
-		// we will get an error trying to reply to the same message twice, we'll have to fix this later
-	case "server-link":
-		link, err := b.getServerLink(ctx, u)
-		if errors.Is(err, database.ErrNotFound) {
-			content = "You do not have a Synth instance."
-		} else if err != nil {
-			log.Ctx(ctx).Err(err).Msg("error getting synth")
-			content = "Unknown error when trying to get Synth instance."
-		} else {
-			content = "Give this link to an admin of each server you'd like your Synth to join: " + link + "\n\nYou should also Add to My Apps."
-		}
-	default:
-		log.Warn().Str("name", options[0].Name).Msg("Received incorrect subcommand name for setupHandler")
-		content = "Uhh, this shouldn't happen."
+	link, err := b.getServerLink(ctx, u)
+	if errors.Is(err, database.ErrNotFound) {
+		content = "You do not have a Synth instance."
+	} else if err != nil {
+		log.Ctx(ctx).Err(err).Msg("error getting synth")
+		content = "Unknown error when trying to get Synth instance."
+	} else {
+		content = "Give this link to an admin of each server you'd like your Synth to join: " + link + "\n\nYou should also Add to My Apps."
 	}
 
-	err := b.interactionSimpleTextResponse(s, i.Interaction, content)
-	if err != nil {
-		log.Err(err).Msg("Failed to respond to user in setupHandler")
-	}
+	return b.interactionSimpleTextResponse(s, i.Interaction, content)
+}
+
+func (b *Bot) setupHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
+	log.Ctx(ctx).Warn().Msg("setup handler called")
+	return b.interactionSimpleTextResponse(s, i.Interaction, "This shouldn't be reachable")
 }
 
 func (b *Bot) getServerLink(ctx context.Context, u *discordgo.User) (string, error) {
