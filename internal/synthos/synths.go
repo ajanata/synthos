@@ -39,7 +39,7 @@ func (app *App) StartSynth(ctx context.Context, u *discordgo.User) error {
 		return controller.ErrUnableToStartSynth
 	}
 
-	sb := synth.New(s)
+	sb := synth.New(s, nil) // TODO
 	err = sb.Start()
 	if err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("failed to start synth")

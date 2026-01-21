@@ -9,8 +9,15 @@ type Config struct {
 	meta toml.MetaData
 
 	SynthOS  SynthOS
-	Postgres Postgres
+	Database Database
 }
+
+type DBDriver string
+
+const (
+	PostgresDBDriver DBDriver = "postgres"
+	Sqlite3DBDriver           = "sqlite3"
+)
 
 type SynthOS struct {
 	AdminID    string
@@ -22,8 +29,9 @@ type ControllerBot struct {
 	Token string
 }
 
-type Postgres struct {
-	DSN string
+type Database struct {
+	DBDriver DBDriver
+	DSN      string
 }
 
 func Load() (Config, error) {

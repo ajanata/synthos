@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 
+	"github.com/glebarez/sqlite"
 	"github.com/rs/zerolog/log"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -14,8 +15,19 @@ type DB struct {
 	g *gorm.DB
 }
 
-func New(c config.Postgres) (*DB, error) {
-	g, err := gorm.Open(postgres.Open(c.DSN), &gorm.Config{
+func New(c config.Database) (*DB, error) {
+	var d gorm.Dialector
+
+	switch c.DBDriver {
+	case config.PostgresDBDriver:
+		d = postgres.Open(c.DSN)
+	case config.Sqlite3DBDriver:
+		d = sqlite.Open(c.DSN)
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", c.DBDriver)
+	}
+
+	g, err := gorm.Open(d, &gorm.Config{
 		TranslateError: true,
 	})
 	if err != nil {

@@ -25,7 +25,7 @@ func main() {
 	zerolog.SetGlobalLevel(c.SynthOS.LogLevel)
 
 	log.Logger.Trace().Msg("Connecting to database")
-	db, err := database.New(c.Postgres)
+	db, err := database.New(c.Database)
 	if err != nil {
 		log.Logger.Panic().Err(err).Msg("Error connecting to database")
 	}

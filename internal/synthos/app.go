@@ -50,7 +50,7 @@ func (app *App) Run() error {
 		return fmt.Errorf("getting enabled synths: %w", err)
 	}
 	for _, s := range synths {
-		sb := synth.New(s)
+		sb := synth.New(s, nil) // TODO
 		err := sb.Start()
 		if err != nil {
 			log.Error().Err(err).Str("user_id", s.DiscordUserID).Msg("starting synth")
