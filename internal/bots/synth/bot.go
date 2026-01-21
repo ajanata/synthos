@@ -19,16 +19,25 @@ type Bot struct {
 	userID string
 	token  string
 
+	synther SynthCRUD
+
 	d *discordgo.Session
 
 	commands        []command
 	commandHandlers map[string]cmdHandlerFunc
 }
 
-func New(synth *database.Synth) *Bot {
+type SynthCRUD interface {
+	CreateSynth(ctx context.Context, u *discordgo.User, token string) error
+	GetSynth(ctx context.Context, u *discordgo.User) (*database.Synth, error)
+	StartSynth(ctx context.Context, u *discordgo.User) error
+}
+
+func New(synth *database.Synth, synther SynthCRUD) *Bot {
 	return &Bot{
-		userID: synth.DiscordUserID,
-		token:  synth.Token,
+		userID:  synth.DiscordUserID,
+		token:   synth.Token,
+		synther: synther,
 	}
 }
 

@@ -82,9 +82,6 @@ func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *di
 	} else if errors.Is(err, ErrInvalidToken) {
 		content = "The Discord token is invalid."
 		goto out
-	} else if errors.Is(err, ErrUnableToStartSynth) {
-		content = "Your Synth was created, but was unable to be started."
-		goto out
 	} else if err != nil {
 		log.Ctx(ctx).Error().Err(err).Msg("error creating synth")
 		content = "Unknown error when trying to create Synth instance."
@@ -96,6 +93,7 @@ func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *di
 		log.Ctx(ctx).Err(err).Msg("error sending response")
 	}
 
+	// TODO do this in a goroutine and update the previous response when it's done
 	err = b.synther.StartSynth(ctx, u)
 	if err != nil {
 		log.Ctx(ctx).Err(err).Msg("error starting synth")
