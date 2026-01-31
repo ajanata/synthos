@@ -8,12 +8,15 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 
+	"github.com/ajanata/synthos/internal/bots"
 	"github.com/ajanata/synthos/internal/command"
 	"github.com/ajanata/synthos/internal/config"
 	"github.com/ajanata/synthos/internal/database"
 )
 
 type Bot struct {
+	bots.Common
+
 	token string
 
 	synther SynthCRUD
@@ -133,25 +136,4 @@ func (b *Bot) DeleteAllCommands() error {
 	}
 
 	return b.Close()
-}
-
-func (b *Bot) interactionSimpleTextResponse(s *discordgo.Session, i *discordgo.Interaction, msg string) error {
-	// was a channel interaction?
-	var flags discordgo.MessageFlags
-	if i.Member != nil {
-		// so we want to only show it to the user that sent the command
-		flags = discordgo.MessageFlagsEphemeral
-	}
-	err := s.InteractionRespond(i, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-			Flags:   flags,
-		},
-	})
-
-	if err != nil {
-		return fmt.Errorf("interaction response: %w", err)
-	}
-	return nil
 }

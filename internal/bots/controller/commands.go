@@ -65,7 +65,7 @@ const setupStartMessage = `Hi! This will be formatted better later. For now, dea
 func (b *Bot) setupStartHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
 	log.Ctx(ctx).Info().Msg("setup start handler")
 
-	return b.interactionSimpleTextResponse(s, i.Interaction, setupStartMessage)
+	return b.InteractionSimpleTextResponse(s, i.Interaction, setupStartMessage)
 }
 
 func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
@@ -88,7 +88,7 @@ func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *di
 		goto out
 	}
 
-	err = b.interactionSimpleTextResponse(s, i.Interaction, "Your Synth has been created, it is now booting! TODO follow up message, but for now, Run `/setup server-link` next.")
+	err = b.InteractionSimpleTextResponse(s, i.Interaction, "Your Synth has been created, it is now booting! TODO follow up message, but for now, Run `/setup server-link` next.")
 	if err != nil {
 		log.Ctx(ctx).Err(err).Msg("error sending response")
 	}
@@ -103,7 +103,7 @@ func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *di
 	}
 
 out:
-	return b.interactionSimpleTextResponse(s, i.Interaction, content)
+	return b.InteractionSimpleTextResponse(s, i.Interaction, content)
 }
 
 func (b *Bot) setupLinkHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
@@ -120,12 +120,12 @@ func (b *Bot) setupLinkHandler(ctx context.Context, s *discordgo.Session, u *dis
 		content = "Give this link to an admin of each server you'd like your Synth to join: " + link + "\n\nYou should also Add to My Apps."
 	}
 
-	return b.interactionSimpleTextResponse(s, i.Interaction, content)
+	return b.InteractionSimpleTextResponse(s, i.Interaction, content)
 }
 
 func (b *Bot) setupHandler(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
 	log.Ctx(ctx).Warn().Msg("setup handler called")
-	return b.interactionSimpleTextResponse(s, i.Interaction, "This shouldn't be reachable")
+	return b.InteractionSimpleTextResponse(s, i.Interaction, "This shouldn't be reachable")
 }
 
 func (b *Bot) getServerLink(ctx context.Context, u *discordgo.User) (string, error) {

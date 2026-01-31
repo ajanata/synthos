@@ -48,3 +48,8 @@ func (b *Builder) Handler(h Handler) *Builder {
 	b.handler = h
 	return b
 }
+
+func (b *Builder) InteractionContext(c ...discordgo.InteractionContextType) *Builder {
+	b.cmd.Contexts = &c
+	return b
+}

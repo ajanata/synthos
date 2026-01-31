@@ -9,12 +9,16 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
 
+	"github.com/ajanata/synthos/internal/bots"
+	"github.com/ajanata/synthos/internal/command"
 	"github.com/ajanata/synthos/internal/database"
 )
 
 const commandEdit = "s;edit "
 
 type Bot struct {
+	bots.Common
+
 	// the user that owns this synth, that we proxy messages for
 	userID string
 	token  string
@@ -23,8 +27,7 @@ type Bot struct {
 
 	d *discordgo.Session
 
-	commands        []command
-	commandHandlers map[string]cmdHandlerFunc
+	cmdGroup *command.Group
 }
 
 type SynthCRUD interface {
@@ -50,10 +53,14 @@ func (b *Bot) Start() error {
 		return err
 	}
 
+	b.buildCommands(ctx)
+
+	log.Ctx(ctx).Trace().Msg("Adding handlers")
 	// TODO more handlers
 	b.d.AddHandler(b.messageCreate)
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
+	b.d.AddHandler(b.cmdGroup.Handler)
 
 	// TODO intents
 	b.d.Identify.Intents = discordgo.IntentsGuildMessages |
@@ -62,9 +69,6 @@ func (b *Bot) Start() error {
 		discordgo.IntentsGuildMessageReactions |
 		discordgo.IntentsDirectMessages
 
-	log.Ctx(ctx).Trace().Msg("Adding handlers")
-	// b.d.AddHandler(b.commandHandler)
-
 	log.Ctx(ctx).Trace().Msg("Connecting synth")
 	err = b.d.Open()
 	if err != nil {
@@ -72,7 +76,7 @@ func (b *Bot) Start() error {
 	}
 
 	ctx = b.loggerCtx(ctx)
-	err = b.registerCommands(ctx)
+	err = b.cmdGroup.Register(ctx, b.d)
 	if err != nil {
 		return fmt.Errorf("registering commands: %w", err)
 	}
@@ -145,6 +149,13 @@ func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate)
 }
 
 func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+	ctx := b.loggerCtx(context.Background())
+	// TODO this needs to only log if the user opted in
+	log.Ctx(ctx).Debug().
+		Str("m.Author.Username", m.Author.Username).
+		Str("m.ChannelID", m.ChannelID).
+		Msg("messageCreate")
+
 	// Ignore all messages created by the bot itself
 	// This isn't required in this specific example but it's a good practice.
 	if m.Author.ID == s.State.User.ID {
@@ -157,7 +168,17 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	sendNewMessage := true
+	deleteOldMessage := true
 	var ref *discordgo.MessageReference
+
+	channel, err := s.Channel(m.ChannelID)
+	if err != nil {
+		panic(err)
+	}
+	if channel.Type == discordgo.ChannelTypeDM {
+		// we can't delete messages in DMs
+		deleteOldMessage = false
+	}
 
 	// if this is a ref to a message in this channel
 	if m.MessageReference != nil && m.MessageReference.Type == discordgo.MessageReferenceTypeDefault && m.MessageReference.GuildID == m.GuildID && m.MessageReference.ChannelID == m.ChannelID {
@@ -204,8 +225,10 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 	}
 
-	err := s.ChannelMessageDelete(m.ChannelID, m.ID)
-	if err != nil {
-		panic(err)
+	if deleteOldMessage {
+		err := s.ChannelMessageDelete(m.ChannelID, m.ID)
+		if err != nil {
+			panic(err)
+		}
 	}
 }
