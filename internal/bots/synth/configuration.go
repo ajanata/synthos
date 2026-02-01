@@ -9,33 +9,35 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func numericButtons(idPrefix string, curValue int) []discordgo.MessageComponent {
-	return []discordgo.MessageComponent{
-		discordgo.Button{
-			Label:    "-10",
-			Style:    discordgo.SecondaryButton,
-			CustomID: idPrefix + "_m10",
-		},
-		discordgo.Button{
-			Label:    "-1",
-			Style:    discordgo.PrimaryButton,
-			CustomID: idPrefix + "_m1",
-		},
-		discordgo.Button{
-			Label:    strconv.Itoa(curValue),
-			Style:    discordgo.SuccessButton,
-			Disabled: true,
-			CustomID: idPrefix + "_disp",
-		},
-		discordgo.Button{
-			Label:    "+1",
-			Style:    discordgo.PrimaryButton,
-			CustomID: idPrefix + "_p1",
-		},
-		discordgo.Button{
-			Label:    "+10",
-			Style:    discordgo.SecondaryButton,
-			CustomID: idPrefix + "_p10",
+func numericButtonsRow(idPrefix string, curValue int) discordgo.ActionsRow {
+	return discordgo.ActionsRow{
+		Components: []discordgo.MessageComponent{
+			discordgo.Button{
+				Label:    "-10",
+				Style:    discordgo.SecondaryButton,
+				CustomID: idPrefix + "_m10",
+			},
+			discordgo.Button{
+				Label:    "-1",
+				Style:    discordgo.PrimaryButton,
+				CustomID: idPrefix + "_m1",
+			},
+			discordgo.Button{
+				Label:    strconv.Itoa(curValue),
+				Style:    discordgo.SuccessButton,
+				Disabled: true,
+				CustomID: idPrefix + "_disp",
+			},
+			discordgo.Button{
+				Label:    "+1",
+				Style:    discordgo.PrimaryButton,
+				CustomID: idPrefix + "_p1",
+			},
+			discordgo.Button{
+				Label:    "+10",
+				Style:    discordgo.SecondaryButton,
+				CustomID: idPrefix + "_p10",
+			},
 		},
 	}
 }
@@ -64,9 +66,7 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 						discordgo.TextDisplay{
 							Content: "Maximum Energy",
 						},
-						discordgo.ActionsRow{
-							Components: numericButtons("max", b.maxEnergy),
-						},
+						numericButtonsRow("max", b.maxEnergy),
 					},
 				},
 				discordgo.Container{
@@ -74,9 +74,7 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 						discordgo.TextDisplay{
 							Content: "Energy Regen per Minute",
 						},
-						discordgo.ActionsRow{
-							Components: numericButtons("regen", b.regen),
-						},
+						numericButtonsRow("regen", b.regen),
 					},
 				},
 			},
