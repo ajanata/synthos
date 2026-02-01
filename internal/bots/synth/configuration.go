@@ -198,6 +198,7 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 		b.regen += 10
 		message = "Energy regen set to " + strconv.Itoa(b.regen)
 	case "synth_name":
+		// TODO figure out how to delete the original response, or edit it after the modal
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
@@ -222,5 +223,7 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 		})
 	}
 
-	return s.InteractionRespond(i.Interaction, b.configMenu(currentName, message))
+	menu := b.configMenu(currentName, message)
+	menu.Type = discordgo.InteractionResponseUpdateMessage
+	return s.InteractionRespond(i.Interaction, menu)
 }
