@@ -19,15 +19,39 @@ func (b *Bot) buildCommands(ctx context.Context) {
 	b.cmdGroup = command.NewGroup()
 
 	b.cmdGroup.Command("update-avatar").
-		Description("Sync your global avatar to your Synth instance").
+		Description("Sync your global avatar to your Synth instance.").
 		Handler(b.updateAvatar).
 		InteractionContext(discordgo.InteractionContextBotDM).
 		Build()
+
+	b.cmdGroup.Command("configure").
+		Description("Configure options for this Synth instance on this server.").
+		Handler(b.configure).
+		InteractionContext(discordgo.InteractionContextGuild).
+		Build()
+}
+
+func (b *Bot) authorized(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) (bool, error) {
+	// TODO support more than just self authorized
+	auth := authorizer.Self{}
+	authorized, err := auth.Authorized(ctx, b.userID, u)
+	if err != nil {
+		_ = b.InteractionSimpleTextResponse(s, i.Interaction, "Failed to authorize. SynthOS Controller has been notified.")
+		return false, err
+	}
+	if !authorized {
+		return false, b.InteractionSimpleTextResponse(s, i.Interaction, "You are not authorized to use this command.")
+	}
+	return authorized, nil
 }
 
 func (b *Bot) updateAvatar(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) error {
 	ctx = b.loggerCtx(ctx)
 	log.Ctx(ctx).Info().Msg("update avatar handler")
+
+	if auth, err := b.authorized(ctx, s, u, i); err != nil || !auth {
+		return err
+	}
 
 	auth := authorizer.Self{}
 	authorized, err := auth.Authorized(ctx, b.userID, u)

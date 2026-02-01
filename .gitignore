@@ -3,3 +3,5 @@ notes.txt
 sandbox.toml
 synthos.toml
 synthos.sqlite
+cmd/asdf.go
+cmd/sandbox/

@@ -28,6 +28,10 @@ type Bot struct {
 	d *discordgo.Session
 
 	cmdGroup *command.Group
+
+	// XXX hack
+	maxEnergy int
+	regen     int
 }
 
 type SynthCRUD interface {
@@ -61,6 +65,7 @@ func (b *Bot) Start() error {
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
 	b.d.AddHandler(b.cmdGroup.Handler)
+	b.d.AddHandler(b.configHandler)
 
 	// TODO intents
 	b.d.Identify.Intents = discordgo.IntentsGuildMessages |

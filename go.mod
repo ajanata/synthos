@@ -2,9 +2,11 @@ module github.com/ajanata/synthos
 
 go 1.24.0
 
+replace github.com/bwmarrin/discordgo => github.com/Tesohh/discordgo v0.0.0-20251029162331-8c0a2d67964e
+
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/bwmarrin/discordgo v0.29.0
+	github.com/bwmarrin/discordgo v0.29.1-0.20251229161010-9f6aa8159fc6
 	github.com/glebarez/sqlite v1.11.0
 	github.com/rs/zerolog v1.34.0
 	gorm.io/driver/postgres v1.6.0
@@ -31,7 +33,7 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
-	modernc.org/libc v1.67.6 // indirect
+	modernc.org/libc v1.67.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.44.3 // indirect

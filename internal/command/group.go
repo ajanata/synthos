@@ -43,10 +43,10 @@ func (g *Group) Register(ctx context.Context, s *discordgo.Session) error {
 
 func (g *Group) Handler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	if i.Type != discordgo.InteractionApplicationCommand {
-		log.Warn().
+		log.Trace().
 			Str("type", i.Type.String()).
 			Str("id", i.ID).
-			Msg("Received incorrect interaction type for a command")
+			Msg("Received incorrect interaction type for a command; ignoring")
 		return
 	}
 
