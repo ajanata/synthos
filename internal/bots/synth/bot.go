@@ -136,16 +136,16 @@ func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate)
 	}
 	fmt.Printf("%+v %+v\n", *p, *p.User)
 
-	st := string(p.Status)
-	if st == "offline" {
-		st = "invisible"
+	st := p.Status
+	if st == discordgo.StatusOffline {
+		st = discordgo.StatusInvisible
 	}
 
 	err := s.UpdateStatusComplex(discordgo.UpdateStatusData{
 		IdleSince:  p.Presence.Since,
 		Activities: p.Activities,
 		AFK:        false,
-		Status:     st,
+		Status:     string(st),
 	})
 	// FIXME this shouldn't be here lol
 	if err != nil {
