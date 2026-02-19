@@ -1,6 +1,6 @@
 module github.com/ajanata/synthos
 
-go 1.24.0
+go 1.26.0
 
 //replace github.com/bwmarrin/discordgo => github.com/Tesohh/discordgo v0.0.0-20251029162331-8c0a2d67964e
 replace github.com/bwmarrin/discordgo => github.com/ajanata/discordgo v0.0.0-20260217215036-20a9452b2fbf

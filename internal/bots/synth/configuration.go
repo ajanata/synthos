@@ -2,12 +2,17 @@ package synth
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
+)
+
+const (
+	maxAvatarSize = 10 * 1024 * 1024
 )
 
 func numericButtonsRow(idPrefix string, curValue int) discordgo.ActionsRow {
@@ -151,6 +156,16 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 		return fmt.Errorf("invalid modal ID (has %d parts, not 2): %s", len(modalID), data.CustomID)
 	}
 
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("responding to interaction: %w", err)
+	}
+
 	modalType := modalID[0]
 
 	if len(data.Components) < 1 {
@@ -205,14 +220,31 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 	case "avatar":
 		message = "Unable to parse new avatar"
 
-		if len(data.Resolved.Attachments) != 1 {
-			return fmt.Errorf("malformed interaction data")
-		}
-		
 		if label, ok := data.Components[1].(*discordgo.Label); ok {
 			if avatar, ok := label.Component.(*discordgo.FileUpload); ok {
 				log.Ctx(ctx).Info().Msg("changing avatar")
 				_ = avatar
+				if len(avatar.Values) != 1 {
+					return fmt.Errorf("malformed interaction data")
+				}
+				att := data.Resolved.Attachments[avatar.Values[0]]
+				if att.Size > maxAvatarSize {
+					message = fmt.Sprintf("Avatar too large (max %d bytes, was %d bytes)", maxAvatarSize, att.Size)
+				} else if att.ContentType != "image/png" && att.ContentType != "image/jpeg" {
+					message = fmt.Sprintf("Avatar must be a PNG or JPEG (was %s)", att.ContentType)
+				} else {
+					body, err := s.RequestWithBucketID("GET", att.URL, nil, "ephemeral-attachments")
+					if err != nil {
+						return fmt.Errorf("downloading avatar: %w", err)
+					}
+					b64 := base64.StdEncoding.EncodeToString(body)
+					_, err = s.UserUpdate("", fmt.Sprintf("data:%s;base64,%s", att.ContentType, b64), "")
+					if err != nil {
+						// TODO lots of logging in this func
+						message = "Failed to update avatar. TODO SynthOS Controller has been notified."
+					}
+					message = "Avatar updated successfully."
+				}
 			} else {
 				return fmt.Errorf("malformed interaction data")
 			}
@@ -224,7 +256,11 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 	}
 
 	menu := b.configMenu(name, message)
-	return s.InteractionRespond(i.Interaction, menu)
+	_, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{
+		Flags:      discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
+		Components: &menu.Data.Components,
+	})
+	return err
 }
 
 func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -288,8 +324,6 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 			},
 		})
 	case "avatar":
-		// FIXME when I have not-plane internet that can download 1.26
-		t := true
 		// TODO figure out how to delete the original response, or edit it after the modal, if possible
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
@@ -306,7 +340,7 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 						Description: "Upload a new avatar for this synth",
 						Component: discordgo.FileUpload{
 							CustomID:  "avatar",
-							Required:  &t,
+							Required:  new(true),
 							MaxValues: 1,
 						},
 					},
