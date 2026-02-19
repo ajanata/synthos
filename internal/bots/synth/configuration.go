@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/rs/zerolog/log"
@@ -59,6 +60,20 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 						Label:    "Change",
 						Style:    discordgo.PrimaryButton,
 						CustomID: "synth_name",
+					},
+				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.Button{
+							Label:    "Upload Avatar",
+							Style:    discordgo.PrimaryButton,
+							CustomID: "avatar",
+						},
+						discordgo.Button{
+							Label:    "Change Bio",
+							Style:    discordgo.PrimaryButton,
+							CustomID: "bio",
+						},
 					},
 				},
 				discordgo.Container{
@@ -131,9 +146,12 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 	log.Ctx(ctx).Info().Msg("config modal handler")
 
 	data := i.ModalSubmitData()
-	if data.CustomID != "synth_name_"+i.Interaction.Member.User.ID {
-		return fmt.Errorf("invalid modal ID: %s", data.CustomID)
+	modalID := strings.Split(data.CustomID, "_")
+	if len(modalID) != 2 {
+		return fmt.Errorf("invalid modal ID (has %d parts, not 2): %s", len(modalID), data.CustomID)
 	}
+
+	modalType := modalID[0]
 
 	if len(data.Components) < 1 {
 		return fmt.Errorf("no components in modal")
@@ -144,21 +162,69 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 		return fmt.Errorf("getting member: %w", err)
 	}
 
-	newName := m.Nick
-	message := "Unable to parse new name"
-	if label, ok := data.Components[0].(*discordgo.Label); ok {
-		if input, ok := label.Component.(*discordgo.TextInput); ok {
-			newName = input.Value
-			err = s.GuildMemberNickname(i.GuildID, "@me", newName)
-			message = "Synth name set to " + newName
-			if err != nil {
-				log.Ctx(ctx).Error().Err(err).Str("new_name", newName).Msg("Error setting new name")
-				message = "Unable to set new name: " + err.Error()
+	name := m.Nick
+	var message string
+
+	switch modalType {
+	case "synthName":
+		message = "Unable to parse new name"
+		if label, ok := data.Components[0].(*discordgo.Label); ok {
+			if input, ok := label.Component.(*discordgo.TextInput); ok {
+				name = input.Value
+				err = s.GuildMemberNickname(i.GuildID, "@me", name)
+				message = "Synth name set to " + name
+				if err != nil {
+					log.Ctx(ctx).Error().Err(err).Str("new_name", name).Msg("Error setting new name")
+					message = "Unable to set new name: " + err.Error()
+				}
+			} else {
+				return fmt.Errorf("malformed interaction data")
 			}
+		} else {
+			return fmt.Errorf("malformed interaction data")
 		}
+	case "bio":
+		message = "Unable to parse new bio"
+		if label, ok := data.Components[1].(*discordgo.Label); ok {
+			if input, ok := label.Component.(*discordgo.TextInput); ok {
+				bio := input.Value
+				_, err = s.GuildCurrentMemberEdit(i.GuildID, &discordgo.GuildCurrentMemberParams{
+					Bio: &bio,
+				})
+				message = "Synth bio updated"
+				if err != nil {
+					log.Ctx(ctx).Error().Err(err).Str("new_bio", bio).Msg("Error setting new bio")
+					message = "Unable to set new bio: " + err.Error()
+				}
+			} else {
+				return fmt.Errorf("malformed interaction data")
+			}
+		} else {
+			return fmt.Errorf("malformed interaction data")
+		}
+	case "avatar":
+		message = "Unable to parse new avatar"
+
+		if len(data.Resolved.Attachments) != 1 {
+			return fmt.Errorf("malformed interaction data")
+		}
+		
+		if label, ok := data.Components[1].(*discordgo.Label); ok {
+			if avatar, ok := label.Component.(*discordgo.FileUpload); ok {
+				log.Ctx(ctx).Info().Msg("changing avatar")
+				_ = avatar
+			} else {
+				return fmt.Errorf("malformed interaction data")
+			}
+		} else {
+			return fmt.Errorf("malformed interaction data")
+		}
+	default:
+		return fmt.Errorf("invalid modal response type: %s", modalType)
 	}
 
-	return s.InteractionRespond(i.Interaction, b.configMenu(newName, message))
+	menu := b.configMenu(name, message)
+	return s.InteractionRespond(i.Interaction, menu)
 }
 
 func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
@@ -198,11 +264,11 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 		b.regen += 10
 		message = "Energy regen set to " + strconv.Itoa(b.regen)
 	case "synth_name":
-		// TODO figure out how to delete the original response, or edit it after the modal
+		// TODO figure out how to delete the original response, or edit it after the modal, if possible
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
-				CustomID: "synth_name_" + i.Interaction.Member.User.ID,
+				CustomID: fmt.Sprintf("synthName_%s", i.Interaction.ID),
 				Title:    "Set Synth Name",
 				Flags:    discordgo.MessageFlagsIsComponentsV2,
 				Components: []discordgo.MessageComponent{
@@ -216,6 +282,58 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 							MaxLength: 32,
 							Required:  true,
 							Value:     m.Nick,
+						},
+					},
+				},
+			},
+		})
+	case "avatar":
+		// FIXME when I have not-plane internet that can download 1.26
+		t := true
+		// TODO figure out how to delete the original response, or edit it after the modal, if possible
+		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID: fmt.Sprintf("avatar_%s", i.Interaction.ID),
+				Title:    "Set Bio",
+				Flags:    discordgo.MessageFlagsIsComponentsV2,
+				Components: []discordgo.MessageComponent{
+					discordgo.TextDisplay{
+						Content: "TODO current avatar?",
+					},
+					discordgo.Label{
+						Label:       "New avatar",
+						Description: "Upload a new avatar for this synth",
+						Component: discordgo.FileUpload{
+							CustomID:  "avatar",
+							Required:  &t,
+							MaxValues: 1,
+						},
+					},
+				},
+			},
+		})
+	case "bio":
+		// TODO figure out how to delete the original response, or edit it after the modal, if possible
+		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID: fmt.Sprintf("bio_%s", i.Interaction.ID),
+				Title:    "Set Bio",
+				Flags:    discordgo.MessageFlagsIsComponentsV2,
+				Components: []discordgo.MessageComponent{
+					discordgo.TextDisplay{
+						Content: "It is not currently possible to display the current bio here due to intentional Discord privacy controls.",
+					},
+					discordgo.Label{
+						Label:       "Bio",
+						Description: "Enter a new bio for this synth",
+						Component: discordgo.TextInput{
+							CustomID:  "synth_bio",
+							Style:     discordgo.TextInputParagraph,
+							MinLength: 1,
+							MaxLength: 200,
+							Required:  true,
 						},
 					},
 				},
