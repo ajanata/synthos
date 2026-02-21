@@ -19,11 +19,7 @@ const commandEdit = "s;edit "
 type Bot struct {
 	bots.Common
 
-	// the user that owns this synth, that we proxy messages for
-	userID string
-	token  string
-
-	synther SynthCRUD
+	synth *database.Synth
 
 	d *discordgo.Session
 
@@ -34,22 +30,14 @@ type Bot struct {
 	regen     int
 }
 
-type SynthCRUD interface {
-	CreateSynth(ctx context.Context, u *discordgo.User, token string) error
-	GetSynth(ctx context.Context, u *discordgo.User) (*database.Synth, error)
-	StartSynth(ctx context.Context, u *discordgo.User) error
-}
-
-func New(synth *database.Synth, synther SynthCRUD) *Bot {
+func New(synth *database.Synth) *Bot {
 	return &Bot{
-		userID:  synth.DiscordUserID,
-		token:   synth.Token,
-		synther: synther,
+		synth: synth,
 	}
 }
 
 func (b *Bot) Start() error {
-	ctx := log.With().Str("user_id", b.userID).Logger().WithContext(context.Background())
+	ctx := log.With().Str("user_id", b.synth.DiscordUserID).Logger().WithContext(context.Background())
 	log.Ctx(ctx).Info().Msg("Starting synth")
 
 	err := b.setup(ctx)
@@ -105,7 +93,7 @@ func (b *Bot) interactionHandler(s *discordgo.Session, i *discordgo.InteractionC
 // loggerCtx attaches information about this Synth to a logger in the context.Context.
 func (b *Bot) loggerCtx(ctx context.Context) context.Context {
 	return log.Ctx(ctx).With().
-		Str("user_id", b.userID).
+		Str("user_id", b.synth.DiscordUserID).
 		Str("bot_username", b.d.State.User.Username).
 		Logger().WithContext(ctx)
 }
@@ -118,7 +106,7 @@ func (b *Bot) setup(ctx context.Context) error {
 		return errors.New("bot already setup")
 	}
 
-	s, err := discordgo.New("Bot " + b.token)
+	s, err := discordgo.New("Bot " + b.synth.Token)
 	if err != nil {
 		return fmt.Errorf("creating Discord session: %w", err)
 	}
@@ -144,7 +132,7 @@ func (b *Bot) userChanged(s *discordgo.Session, u *discordgo.UserUpdate) {
 
 func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate) {
 	// we only care about our synth user
-	if p.User.ID != b.userID {
+	if p.User.ID != b.synth.DiscordUserID {
 		return
 	}
 	fmt.Printf("%+v %+v\n", *p, *p.User)
@@ -181,7 +169,7 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// if this message isn't from our synth user, ignore it
-	if m.Author.ID != b.userID {
+	if m.Author.ID != b.synth.DiscordUserID {
 		return
 	}
 
@@ -249,4 +237,17 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			panic(err)
 		}
 	}
+}
+
+func (b *Bot) deferredEphemeralMessage(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+		Data: &discordgo.InteractionResponseData{
+			Flags: discordgo.MessageFlagsEphemeral,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("responding to interaction: %w", err)
+	}
+	return nil
 }

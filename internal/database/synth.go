@@ -17,9 +17,12 @@ type Synth struct {
 	ApplicationID string `gorm:"not null"`
 	Token         string `gorm:"not null"`
 	Enabled       bool   `gorm:"not null"`
+	AllowLogging  bool   `gorm:"not null;default:false"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	db *DB
 }
 
 func (db *DB) InsertSynth(ctx context.Context, userID, appID, token string) error {
@@ -28,6 +31,7 @@ func (db *DB) InsertSynth(ctx context.Context, userID, appID, token string) erro
 		ApplicationID: appID,
 		Token:         token,
 		Enabled:       true,
+		AllowLogging:  false,
 	})
 	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return fmt.Errorf("%w: %v", ErrAlreadyExists, err)
@@ -46,7 +50,9 @@ func (db *DB) GetSynth(ctx context.Context, userID string) (*Synth, error) {
 		log.Ctx(ctx).Panic().Str("user_id", userID).Msg("Found more than one Synth for user")
 	}
 
-	return &t[0], nil
+	s := &t[0]
+	s.db = db
+	return s, nil
 }
 
 // GetEnabledSynths gets all enabled Synths. TODO pagination
@@ -58,7 +64,17 @@ func (db *DB) GetEnabledSynths(ctx context.Context) ([]*Synth, error) {
 
 	ret := make([]*Synth, 0, len(synths))
 	for _, synth := range synths {
-		ret = append(ret, &synth)
+		s := &synth
+		s.db = db
+		ret = append(ret, s)
 	}
 	return ret, nil
+}
+
+func (s *Synth) Save(ctx context.Context) error {
+	_, err := gorm.G[Synth](s.db.g).
+		Where("id = ?", s.ID).
+		Select("*").
+		Updates(ctx, *s)
+	return err
 }

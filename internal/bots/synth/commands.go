@@ -34,7 +34,7 @@ func (b *Bot) buildCommands(ctx context.Context) {
 func (b *Bot) authorized(ctx context.Context, s *discordgo.Session, u *discordgo.User, i *discordgo.InteractionCreate) (bool, error) {
 	// TODO support more than just self authorized
 	auth := authorizer.Self{}
-	authorized, err := auth.Authorized(ctx, b.userID, u)
+	authorized, err := auth.Authorized(ctx, b.synth.DiscordUserID, u)
 	if err != nil {
 		_ = b.InteractionSimpleTextResponse(s, i.Interaction, "Failed to authorize. SynthOS Controller has been notified.")
 		return false, err
@@ -54,7 +54,7 @@ func (b *Bot) updateAvatar(ctx context.Context, s *discordgo.Session, u *discord
 	}
 
 	auth := authorizer.Self{}
-	authorized, err := auth.Authorized(ctx, b.userID, u)
+	authorized, err := auth.Authorized(ctx, b.synth.DiscordUserID, u)
 	if err != nil {
 		_ = b.InteractionSimpleTextResponse(s, i.Interaction, "Failed to authorize. SynthOS Controller has been notified.")
 		return err

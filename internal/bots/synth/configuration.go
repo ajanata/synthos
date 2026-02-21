@@ -57,6 +57,25 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 				discordgo.TextDisplay{
 					Content: fmt.Sprintf("Configuration options for %s", currentName),
 				},
+				discordgo.ActionsRow{
+					Components: []discordgo.MessageComponent{
+						discordgo.SelectMenu{
+							CustomID: "allow_logging",
+							Options: []discordgo.SelectMenuOption{
+								{
+									Label:   "Allow Logging",
+									Value:   "true",
+									Default: b.synth.AllowLogging,
+								},
+								{
+									Label:   "Disallow Logging",
+									Value:   "false",
+									Default: !b.synth.AllowLogging,
+								},
+							},
+						},
+					},
+				},
 				discordgo.Section{
 					Components: []discordgo.MessageComponent{
 						discordgo.TextDisplay{Content: "Synth Name: " + currentName},
@@ -156,14 +175,9 @@ func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *d
 		return fmt.Errorf("invalid modal ID (has %d parts, not 2): %s", len(modalID), data.CustomID)
 	}
 
-	err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Flags: discordgo.MessageFlagsEphemeral,
-		},
-	})
+	err := b.deferredEphemeralMessage(s, i)
 	if err != nil {
-		return fmt.Errorf("responding to interaction: %w", err)
+		return err
 	}
 
 	modalType := modalID[0]
@@ -299,6 +313,13 @@ func (b *Bot) configMessageComponentHandler(ctx context.Context, s *discordgo.Se
 	case "regen_p10":
 		b.regen += 10
 		message = "Energy regen set to " + strconv.Itoa(b.regen)
+	case "allow_logging":
+		// TODO not suck
+		b.synth.AllowLogging = data.Values[0] == "true"
+		err = b.synth.Save(ctx)
+		if err != nil {
+			return fmt.Errorf("saving synth: %w", err)
+		}
 	case "synth_name":
 		// TODO figure out how to delete the original response, or edit it after the modal, if possible
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
