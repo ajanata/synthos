@@ -64,8 +64,7 @@ func (b *Bot) Start() error {
 	b.d.AddHandler(b.messageCreate)
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
-	b.d.AddHandler(b.cmdGroup.Handler)
-	b.d.AddHandler(b.configHandler)
+	b.d.AddHandler(b.interactionHandler)
 
 	// TODO intents
 	b.d.Identify.Intents = discordgo.IntentsGuildMessages |
@@ -87,6 +86,20 @@ func (b *Bot) Start() error {
 	}
 
 	return nil
+}
+
+func (b *Bot) interactionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	switch i.Type {
+	case discordgo.InteractionApplicationCommand:
+		b.cmdGroup.Handler(s, i)
+	case discordgo.InteractionMessageComponent, discordgo.InteractionModalSubmit:
+		b.configInteractionHandler(s, i)
+	default:
+		log.Ctx(b.loggerCtx(context.Background())).Trace().
+			Str("type", i.Type.String()).
+			Str("id", i.ID).
+			Msg("Received unknown interaction type; ignoring")
+	}
 }
 
 // loggerCtx attaches information about this Synth to a logger in the context.Context.

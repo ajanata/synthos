@@ -124,7 +124,7 @@ func (b *Bot) configure(ctx context.Context, s *discordgo.Session, u *discordgo.
 	return s.InteractionRespond(i.Interaction, b.configMenu(m.Nick, ""))
 }
 
-func (b *Bot) configHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (b *Bot) configInteractionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	ctx := b.loggerCtx(context.Background())
 
 	var err error
