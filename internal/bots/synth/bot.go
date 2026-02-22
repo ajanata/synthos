@@ -1,12 +1,14 @@
 package synth
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	"github.com/ajanata/synthos/internal/bots"
@@ -15,6 +17,7 @@ import (
 )
 
 const commandEdit = "s;edit "
+const maxProxyFileSize = 50 * 1024 * 1024
 
 type Bot struct {
 	bots.Common
@@ -83,7 +86,7 @@ func (b *Bot) interactionHandler(s *discordgo.Session, i *discordgo.InteractionC
 	case discordgo.InteractionMessageComponent, discordgo.InteractionModalSubmit:
 		b.configInteractionHandler(s, i)
 	default:
-		log.Ctx(b.loggerCtx(context.Background())).Trace().
+		b.trace(b.loggerCtx(context.Background())).
 			Str("type", i.Type.String()).
 			Str("id", i.ID).
 			Msg("Received unknown interaction type; ignoring")
@@ -156,8 +159,7 @@ func (b *Bot) presenceChanged(s *discordgo.Session, p *discordgo.PresenceUpdate)
 
 func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	ctx := b.loggerCtx(context.Background())
-	// TODO this needs to only log if the user opted in
-	log.Ctx(ctx).Debug().
+	b.trace(ctx).
 		Str("m.Author.Username", m.Author.Username).
 		Str("m.ChannelID", m.ChannelID).
 		Msg("messageCreate")
@@ -187,21 +189,37 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	// if this is a ref to a message in this channel
-	if m.MessageReference != nil && m.MessageReference.Type == discordgo.MessageReferenceTypeDefault && m.MessageReference.GuildID == m.GuildID && m.MessageReference.ChannelID == m.ChannelID {
+	if m.MessageReference != nil &&
+		m.MessageReference.Type == discordgo.MessageReferenceTypeDefault &&
+		m.MessageReference.GuildID == m.GuildID &&
+		m.MessageReference.ChannelID == m.ChannelID {
+
 		ref = m.MessageReference
 
 		var err error
 		// get the referenced message
 		reply, err := s.ChannelMessage(m.MessageReference.ChannelID, m.MessageReference.MessageID)
 		if err != nil {
-			panic(err)
+			log.Ctx(ctx).Err(err).Msg("Error getting referenced message")
+			return
 		}
 
 		// if the ref is a message we sent
 		if reply.Author.ID == s.State.User.ID && strings.HasPrefix(m.Content, commandEdit) {
-			_, err := s.ChannelMessageEdit(m.ChannelID, reply.ID, m.Content[len(commandEdit):])
+			_, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+				Channel: m.ChannelID,
+				ID:      reply.ID,
+				Content: new(m.Content[len(commandEdit):]),
+				AllowedMentions: &discordgo.MessageAllowedMentions{
+					Parse: []discordgo.AllowedMentionType{
+						discordgo.AllowedMentionTypeUsers,
+						discordgo.AllowedMentionTypeRoles,
+					},
+				},
+			})
 			if err != nil {
-				panic(err)
+				log.Ctx(ctx).Err(err).Msg("Error editing message")
+				return
 			}
 			sendNewMessage = false
 		}
@@ -221,20 +239,59 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		// 	flags |= discordgo.MessageFlagsSuppressNotifications
 		// }
 
+		var stickerIDs []string
+		for _, sticker := range m.StickerItems {
+			stickerIDs = append(stickerIDs, sticker.ID)
+		}
+
+		var files []*discordgo.File
+		// see if any are too large before we download them
+		for _, attach := range m.Attachments {
+			if attach.Size > maxProxyFileSize {
+				_, _ = s.ChannelMessageSend(m.ChannelID, "File too large to proxy (max "+fmt.Sprint(maxProxyFileSize/1024)+" KB)")
+				return
+			}
+		}
+		for _, attach := range m.Attachments {
+			body, err := s.RequestWithBucketID("GET", attach.URL, nil, "TODO") // TODO rate limit bucket
+			if err != nil {
+				log.Ctx(ctx).Err(err).Msg("Error downloading attachment")
+				_, _ = s.ChannelMessageSend(m.ChannelID, "Unable to download attachment!")
+				return
+			}
+			files = append(files, &discordgo.File{
+				Name:        attach.Filename,
+				Reader:      bytes.NewReader(body),
+				ContentType: attach.ContentType,
+			})
+		}
+
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content:   m.Content + " beep",
-			Reference: ref,
-			Flags:     flags,
+			Content:    m.Content + " beep",
+			Reference:  ref,
+			Flags:      flags,
+			StickerIDs: stickerIDs,
+			Files:      files,
+			Poll:       m.Poll,
+			AllowedMentions: &discordgo.MessageAllowedMentions{
+				Parse: []discordgo.AllowedMentionType{
+					discordgo.AllowedMentionTypeUsers,
+					discordgo.AllowedMentionTypeRoles,
+				},
+			},
 		})
 		if err != nil {
-			panic(err)
+			log.Ctx(ctx).Err(err).Msg("Error sending message")
+			_, _ = s.ChannelMessageSend(m.ChannelID, "Unable to proxy message!")
+			return
 		}
 	}
 
 	if deleteOldMessage {
 		err := s.ChannelMessageDelete(m.ChannelID, m.ID)
 		if err != nil {
-			panic(err)
+			log.Ctx(ctx).Err(err).Msg("Error deleting message")
+			return
 		}
 	}
 }
@@ -248,6 +305,13 @@ func (b *Bot) deferredEphemeralMessage(s *discordgo.Session, i *discordgo.Intera
 	})
 	if err != nil {
 		return fmt.Errorf("responding to interaction: %w", err)
+	}
+	return nil
+}
+
+func (b *Bot) trace(ctx context.Context) *zerolog.Event {
+	if b.synth.AllowLogging {
+		return log.Ctx(ctx).Trace()
 	}
 	return nil
 }

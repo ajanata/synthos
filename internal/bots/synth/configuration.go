@@ -55,7 +55,10 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 			Flags: discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
 			Components: []discordgo.MessageComponent{
 				discordgo.TextDisplay{
-					Content: fmt.Sprintf("Configuration options for %s", currentName),
+					Content: fmt.Sprintf("Configuration options for **%s**", currentName),
+				},
+				discordgo.TextDisplay{
+					Content: "Allow extended debug logging? Errors are always logged.",
 				},
 				discordgo.ActionsRow{
 					Components: []discordgo.MessageComponent{
@@ -78,7 +81,7 @@ func (b *Bot) configMenu(currentName, header string) *discordgo.InteractionRespo
 				},
 				discordgo.Section{
 					Components: []discordgo.MessageComponent{
-						discordgo.TextDisplay{Content: "Synth Name: " + currentName},
+						discordgo.TextDisplay{Content: fmt.Sprintf("Synth Name: **%s**", currentName)},
 					},
 					Accessory: discordgo.Button{
 						Label:    "Change",
@@ -152,13 +155,6 @@ func (b *Bot) configInteractionHandler(s *discordgo.Session, i *discordgo.Intera
 		err = b.configMessageComponentHandler(ctx, s, i)
 	case discordgo.InteractionModalSubmit:
 		err = b.configModalHandler(ctx, s, i)
-	default:
-		if i.Type != discordgo.InteractionMessageComponent && i.Type != discordgo.InteractionModalSubmit {
-			log.Ctx(ctx).Trace().
-				Str("type", i.Type.String()).
-				Str("id", i.ID).
-				Msg("Received incorrect interaction type for a message component; ignoring")
-		}
 	}
 
 	if err != nil {
@@ -167,7 +163,7 @@ func (b *Bot) configInteractionHandler(s *discordgo.Session, i *discordgo.Intera
 }
 
 func (b *Bot) configModalHandler(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	log.Ctx(ctx).Info().Msg("config modal handler")
+	b.trace(ctx).Msg("config modal handler")
 
 	data := i.ModalSubmitData()
 	modalID := strings.Split(data.CustomID, "_")
