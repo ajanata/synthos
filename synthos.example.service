@@ -4,10 +4,16 @@ After=network.target
 
 [Service]
 Type=simple
-# e.g. /home/ubuntu/dev/synthos/cmd/synthos
-ExecStart=/usr/local/go/bin/go /path/to/synthos/cmd/synthos
 Restart=always
 RestartSec=10
+
+# Change these
+User=ubuntu
+Group=ubuntu
+# e.g. /home/ubuntu/dev/synthos
+WorkingDirectory=/path/to/synthos
+# e.g. /home/ubuntu/dev/synthos/cmd/synthos
+ExecStart=/usr/local/go/bin/go /path/to/synthos/cmd/synthos
 
 [Install]
 WantedBy=multi-user.target
