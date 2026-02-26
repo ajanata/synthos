@@ -1,0 +1,13 @@
+[Unit]
+Description=SynthOS service
+After=network.target
+
+[Service]
+Type=simple
+# e.g. /home/ubuntu/dev/synthos/cmd/synthos
+ExecStart=/usr/local/go/bin/go /path/to/synthos/cmd/synthos
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
