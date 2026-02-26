@@ -99,7 +99,7 @@ func (b *Bot) setupTokenHandler(ctx context.Context, s *discordgo.Session, u *di
 		log.Ctx(ctx).Err(err).Msg("error starting synth")
 		content = "An internal error occurred while booting your Synth."
 	} else {
-		content = "Your Synth has been created! Run `/setup server-link` next."
+		content = "Your Synth has been created! Run `/setup link` next."
 	}
 
 out:

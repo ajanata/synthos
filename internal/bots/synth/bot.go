@@ -267,7 +267,7 @@ func (b *Bot) messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		}
 
 		_, err := s.ChannelMessageSendComplex(m.ChannelID, &discordgo.MessageSend{
-			Content:    m.Content + " beep",
+			Content:    m.Content,
 			Reference:  ref,
 			Flags:      flags,
 			StickerIDs: stickerIDs,
