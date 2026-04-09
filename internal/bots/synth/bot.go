@@ -56,6 +56,10 @@ func (b *Bot) Start() error {
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
 	b.d.AddHandler(b.interactionHandler)
+	b.d.AddHandler(b.disconnectHandler)
+
+	b.d.ShouldReconnectOnError = true
+	b.d.ShouldRetryOnRateLimit = true
 
 	// TODO intents
 	b.d.Identify.Intents = discordgo.IntentsGuildMessages |
@@ -314,4 +318,9 @@ func (b *Bot) trace(ctx context.Context) *zerolog.Event {
 		return log.Ctx(ctx).Trace()
 	}
 	return nil
+}
+
+func (b *Bot) disconnectHandler(_ *discordgo.Session, _ *discordgo.Disconnect) {
+	ctx := b.loggerCtx(context.Background())
+	log.Ctx(ctx).Warn().Msg("Disconnected.")
 }

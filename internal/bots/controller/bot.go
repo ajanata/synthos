@@ -56,6 +56,9 @@ func (b *Bot) Start() error {
 	log.Ctx(ctx).Trace().Msg("Adding handlers")
 	b.d.AddHandler(b.cmdGroup.Handler)
 
+	b.d.ShouldReconnectOnError = true
+	b.d.ShouldRetryOnRateLimit = true
+
 	log.Ctx(ctx).Trace().Msg("Connecting controller")
 	err = b.d.Open()
 	if err != nil {
@@ -136,4 +139,8 @@ func (b *Bot) DeleteAllCommands() error {
 	}
 
 	return b.Close()
+}
+
+func (b *Bot) disconnectHandler(_ *discordgo.Session, _ *discordgo.Disconnect) {
+	log.Warn().Msg("Controller disconnected.")
 }
