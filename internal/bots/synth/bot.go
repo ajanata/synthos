@@ -56,6 +56,7 @@ func (b *Bot) Start() error {
 	b.d.AddHandler(b.presenceChanged)
 	b.d.AddHandler(b.userChanged)
 	b.d.AddHandler(b.interactionHandler)
+	b.d.AddHandler(b.connectHandler)
 	b.d.AddHandler(b.disconnectHandler)
 
 	b.d.ShouldReconnectOnError = true
@@ -318,6 +319,11 @@ func (b *Bot) trace(ctx context.Context) *zerolog.Event {
 		return log.Ctx(ctx).Trace()
 	}
 	return nil
+}
+
+func (b *Bot) connectHandler(_ *discordgo.Session, _ *discordgo.Connect) {
+	ctx := b.loggerCtx(context.Background())
+	log.Ctx(ctx).Warn().Msg("Connected.")
 }
 
 func (b *Bot) disconnectHandler(_ *discordgo.Session, _ *discordgo.Disconnect) {
